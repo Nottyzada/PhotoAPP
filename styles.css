@@ -336,8 +336,7 @@ textarea {
 
 .panel,
 .timer-band,
-.tv-clock,
-.tv-ranking {
+.tv-clock {
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(232, 238, 252, 0.18);
@@ -348,8 +347,7 @@ textarea {
 }
 
 .panel .ghost-btn,
-.panel .secondary-btn,
-.tv-ranking .secondary-btn {
+.panel .secondary-btn {
   color: var(--text-on-dark);
 }
 
@@ -597,28 +595,53 @@ progress::-moz-progress-bar {
 .tv-view {
   display: flex;
   flex-direction: column;
-  width: min(100%, 1500px);
-  height: calc(100vh - 32px);
+  width: 100%;
+  height: calc(100vh - 24px);
   overflow: hidden;
-  padding: 12px 0;
+  padding: 8px 0 0;
+}
+
+.tv-mode {
+  overflow: hidden;
+}
+
+.tv-mode .app-shell {
+  width: 100%;
+  max-width: none;
+  padding: clamp(10px, 1.5vw, 22px);
 }
 
 .tv-header {
   display: flex;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: 18px;
   flex: 0 0 auto;
-  margin-bottom: 12px;
+  min-height: 92px;
+  margin-bottom: clamp(10px, 1.5vw, 20px);
+}
+
+.tv-brand {
+  min-width: 0;
+}
+
+.tv-brand .tv-logo {
+  width: clamp(58px, 7vw, 96px);
+  border-radius: 18px;
+}
+
+.tv-header .eyebrow {
+  margin-bottom: 4px;
 }
 
 .tv-header h1 {
-  font-size: clamp(2rem, 5.2vw, 4.8rem);
+  font-size: clamp(1.7rem, 3.4vw, 4rem);
+  line-height: 0.95;
+  overflow-wrap: anywhere;
 }
 
-.tv-clock,
-.tv-ranking {
-  padding: 18px;
+.tv-clock {
+  padding: clamp(18px, 3vw, 44px);
 }
 
 .tv-clock {
@@ -626,7 +649,8 @@ progress::-moz-progress-bar {
   overflow: hidden;
   display: grid;
   align-content: center;
-  gap: 18px;
+  justify-items: stretch;
+  gap: clamp(16px, 2.4vw, 34px);
   min-height: 0;
   background:
     linear-gradient(135deg, rgba(60, 49, 147, 0.96), rgba(54, 97, 190, 0.92) 52%, rgba(74, 138, 231, 0.86));
@@ -638,42 +662,36 @@ progress::-moz-progress-bar {
   width: 100%;
   max-width: 100%;
   overflow: hidden;
-  font-size: clamp(3.25rem, 15vw, 10rem);
+  font-size: clamp(4rem, 12vw, 12rem);
   font-weight: 800;
-  line-height: 0.86;
+  line-height: 0.95;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+  text-align: center;
   white-space: nowrap;
 }
 
 .tv-clock progress {
   align-self: end;
+  height: clamp(10px, 1.1vw, 18px);
 }
 
 .tv-grid {
   flex: 1 1 auto;
   min-height: 0;
-  grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
 }
 
-.tv-ranking {
-  min-height: 0;
-  overflow: hidden;
+.tv-clock .status-pill {
+  justify-self: start;
+  font-size: clamp(0.9rem, 1.3vw, 1.2rem);
+  padding: 8px 14px;
 }
 
-.tv-list {
-  max-height: calc(100% - 42px);
-  overflow: hidden;
-  gap: 8px;
-}
-
-.tv-list .ranking-row {
-  padding: 10px 12px;
-}
-
-.tv-list .rank-progress {
-  height: 7px;
+.tv-clock .tv-watermark {
+  width: min(360px, 28vw);
+  opacity: 0.1;
 }
 
 .image-lightbox {
@@ -839,8 +857,7 @@ progress::-moz-progress-bar {
     grid-template-columns: 1fr;
   }
 
-  .tv-clock,
-  .tv-ranking {
+  .tv-clock {
     grid-column: 1 / -1;
   }
 }

@@ -293,7 +293,9 @@ function renderCurrentMission() {
 }
 
 function getTeamMissionProgress(teamId, missions) {
-  const teamSubmissions = state.submissions.filter((item) => item.team_id === teamId);
+  const teamSubmissions = state.submissions
+    .filter((item) => item.team_id === teamId)
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
   for (const mission of missions) {
     const submission = teamSubmissions.find((item) => item.mission_id === mission.id);
     if (submission?.status === "approved" || submission?.status === "rejected") continue;
@@ -346,7 +348,7 @@ async function submitPhoto(event, mission, existingSubmission) {
     if (result.error) throw result.error;
     message.textContent = "Foto enviada. Espere a analise do admin.";
     input.value = "";
-    await loadData();
+    await finishDataOperation();
   } catch (err) {
     message.textContent = getErrorMessage(err);
   } finally {
@@ -442,10 +444,8 @@ async function updateSubmissionStatus(submission, status, note, options = {}) {
   }
 
   await recalculateTeamScore(submission.team_id);
-  if (options.sync) {
-    await requestScreenSync({ quiet: true });
-  }
-  await loadData();
+  if (options.sync) await finishDataOperation();
+  else await loadData();
   return true;
 }
 
@@ -461,8 +461,7 @@ async function approveSubmissionWithEvaluation(submission, evaluationNote) {
   }
 
   await recalculateTeamScore(submission.team_id);
-  await requestScreenSync({ quiet: true });
-  await loadData();
+  await finishDataOperation();
   return true;
 }
 
@@ -615,8 +614,7 @@ async function saveMission(event) {
   clearMissionForm();
   await loadData();
   await recalculateAllTeamScores();
-  await requestScreenSync({ quiet: true });
-  await loadData();
+  await finishDataOperation();
 }
 
 function renderAdminMissions() {
@@ -684,8 +682,7 @@ async function deleteMission(mission) {
 
   await loadData();
   await Promise.all(affectedTeamIds.map((teamId) => recalculateTeamScore(teamId)));
-  await requestScreenSync({ quiet: true });
-  await loadData();
+  await finishDataOperation();
 }
 
 async function saveTeam(event) {
@@ -715,7 +712,7 @@ async function saveTeam(event) {
     return;
   }
   clearTeamForm();
-  await loadData();
+  await finishDataOperation();
 }
 
 function renderAdminTeams() {
@@ -780,8 +777,7 @@ async function deleteTeam(team) {
     return;
   }
 
-  await requestScreenSync({ quiet: true });
-  await loadData();
+  await finishDataOperation();
 }
 
 function renderRanking(selector) {
@@ -815,7 +811,7 @@ function renderRanking(selector) {
 }
 
 function renderTv() {
-  renderRanking("#tvRanking");
+  renderTimer();
 }
 
 function openSubmissionImage(photoUrl) {
@@ -846,7 +842,7 @@ async function deleteSubmission(submission) {
   }
 
   await recalculateTeamScore(submission.team_id);
-  await loadData();
+  await finishDataOperation();
 }
 
 async function startTimer(inputSelector) {
@@ -888,7 +884,7 @@ async function upsertTimer(payload) {
     showToast(getErrorMessage(error));
     return;
   }
-  await loadData();
+  await finishDataOperation();
 }
 
 async function syncScreens(event) {
@@ -909,6 +905,14 @@ async function syncScreens(event) {
       button.disabled = false;
     }, 1400);
   }
+}
+
+async function finishDataOperation() {
+  await loadData();
+  await requestScreenSync({ quiet: true });
+  window.setTimeout(() => {
+    requestScreenSync({ quiet: true });
+  }, 450);
 }
 
 async function requestScreenSync(options = {}) {
@@ -983,6 +987,7 @@ function defaultTimer(duration = 60) {
 }
 
 function showView(name) {
+  document.body.classList.toggle("tv-mode", name === "tv");
   $("#loginView").classList.toggle("hidden", name !== "login");
   $("#teamView").classList.toggle("hidden", name !== "team");
   $("#adminView").classList.toggle("hidden", name !== "admin");
@@ -1018,11 +1023,24 @@ function getSubmissionScore(submission) {
 }
 
 function sortMissionsForTeams(missions) {
-  return [...missions].sort((a, b) => {
-    const difficultyDiff = DIFFICULTY_ORDER[normalizeDifficulty(a.difficulty)] - DIFFICULTY_ORDER[normalizeDifficulty(b.difficulty)];
-    if (difficultyDiff !== 0) return difficultyDiff;
-    return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
-  });
+  const orderedDifficulties = Object.entries(DIFFICULTY_ORDER)
+    .sort((a, b) => a[1] - b[1])
+    .map(([difficulty]) => difficulty);
+  const byDifficulty = orderedDifficulties.map((difficulty) =>
+    [...missions]
+      .filter((mission) => normalizeDifficulty(mission.difficulty) === difficulty)
+      .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
+  );
+  const maxRound = Math.max(...byDifficulty.map((bucket) => bucket.length), 0);
+  const sorted = [];
+
+  for (let round = 0; round < maxRound; round += 1) {
+    byDifficulty.forEach((bucket) => {
+      if (bucket[round]) sorted.push(bucket[round]);
+    });
+  }
+
+  return sorted;
 }
 
 function normalizeDifficulty(value) {
