@@ -238,7 +238,7 @@ async function loadData() {
   state.missions = missionsResult.data || [];
   state.submissions = submissionsResult.data || [];
   state.timer = timerResult.data || defaultTimer();
-  syncTimerServerClock(state.timer);
+  await syncTimerServerClock();
   renderAll();
 }
 
@@ -1132,13 +1132,15 @@ function getElapsedSeconds(timer) {
   return Math.max(0, saved + delta);
 }
 
-function syncTimerServerClock(timer) {
-  const serverReference = timer?.server_synced_at || timer?.updated_at || timer?.started_at || timer?.paused_at;
-  if (!serverReference) {
+async function syncTimerServerClock() {
+  if (!state.client) return;
+  const { data, error } = await state.client.rpc("get_server_time");
+  if (error || !data) {
+    console.warn("Nao foi possivel sincronizar com o horario do Supabase.", error);
     state.timerServerOffsetMs = 0;
     return;
   }
-  state.timerServerOffsetMs = new Date(serverReference).getTime() - Date.now();
+  state.timerServerOffsetMs = new Date(data).getTime() - Date.now();
 }
 
 function getSyncedNow() {
