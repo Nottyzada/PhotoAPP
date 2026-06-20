@@ -43,6 +43,11 @@ const state = {
   subscriptions: [],
   clockInterval: null,
   loadTimer: null,
+  timeline: {
+    index: 0,
+    playing: true,
+    interval: null,
+  },
 };
 
 const $ = (selector, root = document) => root.querySelector(selector);
@@ -75,6 +80,14 @@ function init() {
     return;
   }
 
+  if (location.hash === "#timeline" && state.session && isAdminSession()) {
+    hydrateSessionUI();
+    showView("timeline");
+    loadData();
+    subscribeRealtime();
+    return;
+  }
+
   if (state.session) {
     hydrateSessionUI();
     showView(isAdminSession() ? "admin" : "team");
@@ -91,7 +104,12 @@ function bindEvents() {
   $("#teamLogout").addEventListener("click", logout);
   $("#adminLogout").addEventListener("click", logout);
   $("#adminOpenTv").addEventListener("click", openTv);
+  $("#adminOpenTimeline").addEventListener("click", openTimeline);
   $("#adminSyncScreens").addEventListener("click", syncScreens);
+  $("#timelineBackAdmin").addEventListener("click", backToAdmin);
+  $("#timelinePrev").addEventListener("click", () => changeTimelineSlide(-1));
+  $("#timelinePlay").addEventListener("click", toggleTimelinePlay);
+  $("#timelineNext").addEventListener("click", () => changeTimelineSlide(1));
   $("#openTvFromLogin").addEventListener("click", openTv);
   $("#refreshTeamData").addEventListener("click", loadData);
   $("#submissionFilter").addEventListener("change", renderAdmin);
@@ -111,6 +129,10 @@ function bindEvents() {
       showView("tv");
       loadData();
       subscribeRealtime();
+    } else if (location.hash === "#timeline" && state.session && isAdminSession()) {
+      showView("timeline");
+      loadData();
+      subscribeRealtime();
     } else if (state.session) {
       showView(isAdminSession() ? "admin" : "team");
     } else {
@@ -119,7 +141,11 @@ function bindEvents() {
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) loadData();
+    if (document.hidden) {
+      stopTimelineSlideshow();
+      return;
+    }
+    loadData();
   });
 }
 
@@ -244,6 +270,7 @@ function renderAll() {
   if (!$("#teamView").classList.contains("hidden")) renderTeam();
   if (!$("#adminView").classList.contains("hidden")) renderAdmin();
   if (!$("#tvView").classList.contains("hidden")) renderTv();
+  if (!$("#timelineView").classList.contains("hidden")) renderTimeline();
 }
 
 function renderTeam() {
@@ -814,6 +841,134 @@ function renderTv() {
   renderTimer();
 }
 
+function renderTimeline() {
+  const stage = $("#timelineStage");
+  const track = $("#timelineTrack");
+  if (!stage || !track) return;
+
+  const moments = getTimelineMoments();
+  stage.innerHTML = "";
+  track.innerHTML = "";
+
+  if (!moments.length) {
+    stopTimelineSlideshow();
+    stage.append(emptyState("Nenhuma foto enviada ainda para montar a timeline."));
+    $("#timelinePlay").textContent = "Play";
+    return;
+  }
+
+  state.timeline.index = clampTimelineIndex(state.timeline.index, moments.length);
+  const current = moments[state.timeline.index];
+
+  moments.forEach((moment, index) => {
+    const button = document.createElement("button");
+    button.className = `rt-link${index === state.timeline.index ? " is-active" : ""}`;
+    button.type = "button";
+    button.innerHTML = `<span>${String(index + 1).padStart(2, "0")}</span><small>${escapeHtml(moment.shortDate)}</small>`;
+    button.addEventListener("click", () => {
+      state.timeline.index = index;
+      renderTimeline();
+    });
+    track.append(button);
+  });
+
+  stage.innerHTML = `
+    <section class="rt-slide" style="--h:${(state.timeline.index * 34) % 360}">
+      <div class="rt-copy">
+        <span class="rt-kicker">${escapeHtml(current.status)} • ${escapeHtml(current.date)}</span>
+        <h2>
+          <span>${escapeHtml(current.teamLine)}</span>
+          <span>${escapeHtml(current.missionTitle)}</span>
+        </h2>
+        <p>${escapeHtml(current.story)}</p>
+        <div class="rt-meta">
+          <span>${escapeHtml(current.difficulty)} - ${current.points} pts</span>
+          <span>Momento ${state.timeline.index + 1} de ${moments.length}</span>
+        </div>
+      </div>
+      <button class="rt-image" type="button" aria-label="Abrir foto em tela cheia">
+        <img src="${escapeAttr(current.photoUrl)}" alt="Foto da timeline" />
+      </button>
+    </section>
+  `;
+
+  $(".rt-image", stage).addEventListener("click", () => openSubmissionImage(current.photoUrl));
+  $("#timelinePlay").textContent = state.timeline.playing ? "Pausar" : "Play";
+  startTimelineSlideshow();
+}
+
+function getTimelineMoments() {
+  return state.submissions
+    .filter((submission) => submission.photo_url)
+    .sort((a, b) => new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime())
+    .map((submission) => {
+      const team = findTeam(submission.team_id);
+      const mission = findMission(submission.mission_id);
+      const evaluation = parseEvaluationNote(submission.note);
+      return {
+        photoUrl: submission.photo_url,
+        teamLine: `${team?.emoji || ""} ${team?.name || "Time"}`.trim(),
+        missionTitle: mission?.title || "Missao removida",
+        difficulty: getDifficultyLabel(mission?.difficulty),
+        points: getMissionPoints(mission),
+        status: statusLabel(submission.status),
+        date: formatDate(submission.created_at),
+        shortDate: formatShortDate(submission.created_at),
+        story: getTimelineStory(submission, evaluation),
+      };
+    });
+}
+
+function getTimelineStory(submission, evaluation) {
+  if (submission.status === "approved" && evaluation) {
+    return `Missao conquistada com ${formatSigned(evaluation.criteria_total || 0)} nos criterios. Total: ${evaluation.total_points || getSubmissionScore(submission)} pts.`;
+  }
+  if (submission.status === "approved") return "Missao conquistada e registrada na historia da gincana.";
+  if (submission.status === "rejected") return "Caiu, levantou e seguiu para o proximo desafio.";
+  if (submission.status === "revision") return "A equipe recebeu retorno e voltou para tentar melhor.";
+  return "Momento em analise, aguardando a decisao do admin.";
+}
+
+function formatShortDate(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  }).format(new Date(value));
+}
+
+function clampTimelineIndex(index, length) {
+  if (!length) return 0;
+  if (index < 0) return length - 1;
+  if (index >= length) return 0;
+  return index;
+}
+
+function changeTimelineSlide(step) {
+  const moments = getTimelineMoments();
+  if (!moments.length) return;
+  state.timeline.index = clampTimelineIndex(state.timeline.index + step, moments.length);
+  renderTimeline();
+}
+
+function toggleTimelinePlay() {
+  state.timeline.playing = !state.timeline.playing;
+  renderTimeline();
+}
+
+function startTimelineSlideshow() {
+  stopTimelineSlideshow();
+  const visible = !$("#timelineView").classList.contains("hidden");
+  const moments = getTimelineMoments();
+  if (!visible || !state.timeline.playing || document.hidden || moments.length < 2) return;
+  state.timeline.interval = setInterval(() => changeTimelineSlide(1), 5000);
+}
+
+function stopTimelineSlideshow() {
+  clearInterval(state.timeline.interval);
+  state.timeline.interval = null;
+}
+
 function openSubmissionImage(photoUrl) {
   if (!photoUrl) return;
   const overlay = document.createElement("div");
@@ -987,16 +1142,28 @@ function defaultTimer(duration = 60) {
 }
 
 function showView(name) {
+  if (name !== "timeline") stopTimelineSlideshow();
   document.body.classList.toggle("tv-mode", name === "tv");
+  document.body.classList.toggle("timeline-mode", name === "timeline");
   $("#loginView").classList.toggle("hidden", name !== "login");
   $("#teamView").classList.toggle("hidden", name !== "team");
   $("#adminView").classList.toggle("hidden", name !== "admin");
   $("#tvView").classList.toggle("hidden", name !== "tv");
+  $("#timelineView").classList.toggle("hidden", name !== "timeline");
   renderAll();
 }
 
 function openTv() {
   window.open(`${location.pathname}#tv`, "_blank", "noopener,noreferrer");
+}
+
+function openTimeline() {
+  window.open(`${location.pathname}#timeline`, "_blank", "noopener,noreferrer");
+}
+
+function backToAdmin() {
+  location.hash = "";
+  showView(state.session && isAdminSession() ? "admin" : "login");
 }
 
 function isAdminName(name) {

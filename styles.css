@@ -694,6 +694,202 @@ progress::-moz-progress-bar {
   opacity: 0.1;
 }
 
+.radio-timeline {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  border-radius: 0;
+  background: #141417;
+  color: var(--text-on-dark);
+}
+
+.timeline-mode {
+  overflow: hidden;
+}
+
+.timeline-mode .app-shell {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+
+.rt-nav {
+  position: relative;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(180px, 300px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  height: 104px;
+  border-bottom: 1px solid rgba(232, 238, 252, 0.16);
+  background: rgba(20, 20, 23, 0.94);
+  padding: 14px clamp(16px, 2vw, 32px);
+}
+
+.rt-brand h1 {
+  font-size: clamp(1.35rem, 3vw, 2.5rem);
+}
+
+.rt-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: clamp(12px, 2vw, 34px);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 12px;
+  scrollbar-width: thin;
+}
+
+.rt-link {
+  position: relative;
+  z-index: 1;
+  min-width: 76px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 8px;
+  text-align: center;
+  font-weight: 900;
+}
+
+.rt-link span,
+.rt-link small {
+  display: block;
+}
+
+.rt-link.is-active {
+  color: var(--drop-ice);
+}
+
+.rt-link.is-active span {
+  transform: scale(1.28);
+}
+
+.rt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.rt-stage {
+  height: calc(100% - 104px);
+}
+
+.rt-slide {
+  --h: 220;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(320px, 0.95fr);
+  align-items: center;
+  min-height: 100%;
+  gap: clamp(18px, 4vw, 64px);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 18%, hsla(var(--h), 76%, 58%, 0.34), transparent 28rem),
+    linear-gradient(135deg, #141417, #18256f 48%, #0f1236);
+  padding: clamp(24px, 5vw, 80px);
+}
+
+.rt-copy {
+  position: relative;
+  z-index: 1;
+}
+
+.rt-kicker {
+  display: inline-flex;
+  border: 1px solid rgba(232, 238, 252, 0.22);
+  border-radius: 999px;
+  background: rgba(232, 238, 252, 0.1);
+  color: var(--drop-ice);
+  padding: 7px 11px;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.rt-copy h2 {
+  margin-top: 18px;
+  font-size: clamp(2.4rem, 8vw, 7rem);
+  line-height: 0.92;
+}
+
+.rt-copy h2 span {
+  display: block;
+}
+
+.rt-copy h2 span:first-child {
+  color: var(--drop-bright);
+  font-size: clamp(1.4rem, 5vw, 4.4rem);
+}
+
+.rt-copy p {
+  max-width: 760px;
+  margin-top: 18px;
+  color: var(--muted-on-dark);
+  font-size: clamp(1rem, 1.6vw, 1.35rem);
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.rt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.rt-meta span {
+  border: 1px solid rgba(74, 138, 231, 0.34);
+  border-radius: 999px;
+  background: rgba(74, 138, 231, 0.14);
+  color: var(--drop-ice);
+  padding: 8px 11px;
+  font-weight: 900;
+}
+
+.rt-image {
+  position: relative;
+  overflow: hidden;
+  border: 0;
+  border-radius: var(--radius);
+  background: #111;
+  padding: 0;
+  box-shadow: 0.45rem 0.45rem 6rem rgba(0, 0, 0, 0.42);
+  transform: perspective(900px) rotateY(-5deg);
+  animation: rtImageIn 0.7s ease both;
+}
+
+.rt-image::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: hsla(var(--h), 50%, 50%, 0.26);
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.rt-image img {
+  width: 100%;
+  height: min(76vh, 820px);
+  object-fit: cover;
+  filter: brightness(0.72) saturate(1.1);
+}
+
+@keyframes rtImageIn {
+  from {
+    opacity: 0;
+    transform: perspective(900px) rotateY(16deg) translateY(24px);
+  }
+
+  to {
+    opacity: 1;
+    transform: perspective(900px) rotateY(-5deg) translateY(0);
+  }
+}
+
 .image-lightbox {
   position: fixed;
   z-index: 1000;
@@ -859,5 +1055,43 @@ progress::-moz-progress-bar {
 
   .tv-clock {
     grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .radio-timeline {
+    height: 100vh;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  .rt-nav {
+    grid-template-columns: 1fr;
+    height: 176px;
+  }
+
+  .rt-track {
+    order: 3;
+  }
+
+  .rt-actions {
+    justify-content: flex-start;
+  }
+
+  .rt-stage {
+    height: calc(100% - 176px);
+  }
+
+  .rt-slide {
+    grid-template-columns: 1fr;
+    min-height: calc(100vh - 180px);
+  }
+
+  .rt-image {
+    transform: none;
+  }
+
+  .rt-image img {
+    height: min(54vh, 520px);
   }
 }

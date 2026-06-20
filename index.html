@@ -99,6 +99,7 @@
           </div>
           <div class="topbar-actions">
             <button id="adminOpenTv" class="ghost-btn" type="button">Abrir TV</button>
+            <button id="adminOpenTimeline" class="ghost-btn" type="button">Timeline</button>
             <button id="adminSyncScreens" class="ghost-btn" type="button">Sincronizar telas</button>
             <button id="adminLogout" class="ghost-btn" type="button">Sair</button>
           </div>
@@ -229,6 +230,26 @@
             <progress id="tvTimerProgress" max="100" value="0"></progress>
           </section>
         </main>
+      </section>
+
+      <section id="timelineView" class="view radio-timeline hidden">
+        <header class="rt-nav">
+          <div class="brand-lockup rt-brand">
+            <img class="brand-mark header-logo" src="assets/images/logo.png" alt="DROP" />
+            <div>
+              <p class="eyebrow">Jornada ao vivo</p>
+              <h1>Timeline DROP</h1>
+            </div>
+          </div>
+          <div id="timelineTrack" class="rt-track"></div>
+          <div class="rt-actions">
+            <button id="timelinePrev" class="ghost-btn" type="button">Anterior</button>
+            <button id="timelinePlay" class="ghost-btn" type="button">Pausar</button>
+            <button id="timelineNext" class="ghost-btn" type="button">Proximo</button>
+            <button id="timelineBackAdmin" class="ghost-btn" type="button">Voltar admin</button>
+          </div>
+        </header>
+        <main id="timelineStage" class="rt-stage" aria-live="polite"></main>
       </section>
     </div>
 
