@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gincana FotoApp</title>
+    <link rel="icon" href="assets/images/logo.png" />
+    <link rel="apple-touch-icon" href="assets/images/logo.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Syne:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="app-shell">
+      <section id="loginView" class="view login-view">
+        <div class="login-card">
+          <img class="brand-mark login-logo" src="assets/images/logo.png" alt="DROP" />
+          <p class="eyebrow">Gincana ao vivo</p>
+          <h1>DROP</h1>
+          <p class="muted">Entre com o nome e senha do time para receber a missao atual e enviar a foto para revisao.</p>
+
+          <form id="loginForm" class="stack">
+            <label>
+              <span>Nome do time</span>
+              <input id="loginName" name="name" autocomplete="username" required placeholder="ex: Azul" />
+            </label>
+            <label>
+              <span>Senha</span>
+              <input
+                id="loginPassword"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                required
+                placeholder="Senha do time"
+              />
+            </label>
+            <button class="primary-btn" type="submit">Entrar</button>
+            <p id="loginError" class="form-message" role="alert"></p>
+          </form>
+
+          <button id="openTvFromLogin" class="ghost-btn" type="button">Abrir painel TV</button>
+        </div>
+      </section>
+
+      <section id="teamView" class="view hidden">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img class="brand-mark header-logo" src="assets/images/logo.png" alt="DROP" />
+            <div>
+              <p class="eyebrow">Painel do time</p>
+              <h1 id="teamGreeting">Time</h1>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button id="teamLogout" class="ghost-btn" type="button">Sair</button>
+          </div>
+        </header>
+
+        <main class="page-grid team-grid">
+          <section class="timer-band">
+            <img class="brand-watermark" src="assets/images/logo.png" alt="" aria-hidden="true" />
+            <div>
+              <span id="teamTimerStatus" class="status-pill">Timer</span>
+              <h2 id="teamTimerDisplay">00:00:00</h2>
+            </div>
+            <div class="timer-meta">
+              <span id="teamTimerProgressText">0%</span>
+              <progress id="teamTimerProgress" max="100" value="0"></progress>
+            </div>
+          </section>
+
+          <section class="panel mission-stage">
+            <img class="panel-logo" src="assets/images/logo.png" alt="" aria-hidden="true" />
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Missao atual</p>
+                <h2>Sua proxima foto</h2>
+              </div>
+              <button id="refreshTeamData" class="icon-btn" type="button" title="Atualizar">↻</button>
+            </div>
+            <div id="missionsList" class="mission-list single-mission"></div>
+          </section>
+        </main>
+      </section>
+
+      <section id="adminView" class="view hidden">
+        <header class="topbar">
+          <div class="brand-lockup">
+            <img class="brand-mark header-logo" src="assets/images/logo.png" alt="DROP" />
+            <div>
+              <p class="eyebrow">Painel admin</p>
+              <h1>Controle da gincana</h1>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button id="adminOpenTv" class="ghost-btn" type="button">Abrir TV</button>
+            <button id="adminLogout" class="ghost-btn" type="button">Sair</button>
+          </div>
+        </header>
+
+        <main class="admin-layout">
+          <section class="panel admin-timer">
+            <img class="panel-logo" src="assets/images/logo.png" alt="" aria-hidden="true" />
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Timer global</p>
+                <h2 id="adminTimerDisplay">00:00:00</h2>
+              </div>
+              <span id="adminTimerStatus" class="status-pill">parado</span>
+            </div>
+            <div class="timer-controls">
+              <label>
+                <span>Duracao em minutos</span>
+                <input id="timerDuration" type="number" min="1" step="1" />
+              </label>
+              <div class="button-row">
+                <button id="timerStart" class="primary-btn" type="button">Iniciar</button>
+                <button id="timerPause" class="secondary-btn" type="button">Pausar</button>
+                <button id="timerResume" class="secondary-btn" type="button">Retomar</button>
+                <button id="timerReset" class="danger-btn" type="button">Zerar</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel wide">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Submissoes</p>
+                <h2>Avaliacao</h2>
+              </div>
+              <select id="submissionFilter">
+                <option value="all">Todas</option>
+                <option value="pending">Esperando revisao</option>
+                <option value="approved">Aprovadas</option>
+                <option value="revision">Revisao solicitada</option>
+                <option value="rejected">Contestadas</option>
+              </select>
+            </div>
+            <div id="adminSubmissions" class="submission-list admin-submissions"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Missoes</p>
+                <h2>Criar e editar</h2>
+              </div>
+            </div>
+            <form id="missionForm" class="stack compact-form">
+              <input id="missionId" type="hidden" />
+              <label><span>Titulo</span><input id="missionTitle" required /></label>
+              <label><span>Descricao</span><textarea id="missionDescription" required rows="3"></textarea></label>
+              <div class="form-grid">
+                <label><span>Pontos</span><input id="missionPoints" type="number" min="0" required /></label>
+                <label><span>Categoria</span><input id="missionCategory" /></label>
+                <label><span>Dificuldade</span><input id="missionDifficulty" /></label>
+                <label class="check-label"><input id="missionActive" type="checkbox" checked /> Ativa</label>
+              </div>
+              <div class="button-row">
+                <button class="primary-btn" type="submit">Salvar missao</button>
+                <button id="clearMissionForm" class="secondary-btn" type="button">Limpar</button>
+              </div>
+            </form>
+            <div id="adminMissions" class="entity-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Times</p>
+                <h2>Cadastro e pontos</h2>
+              </div>
+            </div>
+            <form id="teamForm" class="stack compact-form">
+              <input id="editTeamId" type="hidden" />
+              <label><span>Nome</span><input id="teamName" required /></label>
+              <label><span>Senha</span><input id="teamPassword" required /></label>
+              <div class="form-grid">
+                <label><span>Cor</span><input id="teamColor" type="color" value="#6c63ff" /></label>
+                <label><span>Emoji</span><input id="teamEmoji" maxlength="4" placeholder="🏁" /></label>
+                <label><span>Pontos</span><input id="teamScore" type="number" value="0" /></label>
+              </div>
+              <div class="button-row">
+                <button class="primary-btn" type="submit">Salvar time</button>
+                <button id="clearTeamForm" class="secondary-btn" type="button">Limpar</button>
+              </div>
+            </form>
+            <div id="adminTeams" class="entity-list"></div>
+          </section>
+
+          <section class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Ranking</p>
+                <h2>Geral</h2>
+              </div>
+            </div>
+            <div id="adminRanking" class="ranking-list"></div>
+          </section>
+        </main>
+      </section>
+
+      <section id="tvView" class="view tv-view hidden">
+        <header class="tv-header">
+          <div class="brand-lockup tv-brand">
+            <img class="brand-mark tv-logo" src="assets/images/logo.png" alt="DROP" />
+            <div>
+              <p class="eyebrow">Gincana ao vivo</p>
+              <h1>Ranking em tempo real</h1>
+            </div>
+          </div>
+        </header>
+        <main class="tv-grid">
+          <section class="tv-clock">
+            <img class="brand-watermark tv-watermark" src="assets/images/logo.png" alt="" aria-hidden="true" />
+            <span id="tvTimerStatus" class="status-pill">Timer</span>
+            <div id="tvTimerDisplay">00:00:00</div>
+            <progress id="tvTimerProgress" max="100" value="0"></progress>
+            <div class="tv-timer-controls">
+              <label>
+                <span>Minutos</span>
+                <input id="tvTimerDuration" type="number" min="1" step="1" />
+              </label>
+              <div class="button-row">
+                <button id="tvTimerStart" class="primary-btn" type="button">Iniciar</button>
+                <button id="tvTimerPause" class="secondary-btn" type="button">Pausar</button>
+                <button id="tvTimerResume" class="secondary-btn" type="button">Retomar</button>
+                <button id="tvTimerReset" class="danger-btn" type="button">Zerar</button>
+              </div>
+            </div>
+          </section>
+          <section class="tv-podium">
+            <img class="panel-logo" src="assets/images/logo.png" alt="" aria-hidden="true" />
+            <h2>Podio</h2>
+            <div id="tvPodium" class="podium"></div>
+          </section>
+          <section class="tv-ranking">
+            <img class="panel-logo" src="assets/images/logo.png" alt="" aria-hidden="true" />
+            <h2>Ranking completo</h2>
+            <div id="tvRanking" class="ranking-list tv-list"></div>
+          </section>
+        </main>
+      </section>
+    </div>
+
+    <template id="missionCardTemplate">
+      <article class="mission-card">
+        <div class="mission-card-head">
+          <div>
+            <span class="tag mission-category"></span>
+            <h3 class="mission-title"></h3>
+          </div>
+          <strong class="mission-points"></strong>
+        </div>
+        <p class="mission-description"></p>
+        <div class="mission-meta">
+          <span class="mission-difficulty"></span>
+          <span class="mission-status"></span>
+        </div>
+        <p class="mission-note"></p>
+        <form class="upload-form">
+          <input class="photo-input" type="file" accept="image/*" capture="environment" required />
+          <button class="primary-btn" type="submit">Enviar foto</button>
+          <p class="form-message"></p>
+        </form>
+      </article>
+    </template>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
