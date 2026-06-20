@@ -43,6 +43,7 @@ const state = {
   subscriptions: [],
   clockInterval: null,
   loadTimer: null,
+  timerServerOffsetMs: 0,
   timeline: {
     index: 0,
     playing: true,
@@ -237,6 +238,7 @@ async function loadData() {
   state.missions = missionsResult.data || [];
   state.submissions = submissionsResult.data || [];
   state.timer = timerResult.data || defaultTimer();
+  syncTimerServerClock(state.timer);
   renderAll();
 }
 
@@ -1126,8 +1128,21 @@ function getElapsedSeconds(timer) {
   if (!timer) return 0;
   const saved = Number(timer.elapsed_seconds || 0);
   if (timer.status !== "running" || !timer.started_at) return saved;
-  const delta = Math.floor((Date.now() - new Date(timer.started_at).getTime()) / 1000);
+  const delta = Math.floor((getSyncedNow() - new Date(timer.started_at).getTime()) / 1000);
   return Math.max(0, saved + delta);
+}
+
+function syncTimerServerClock(timer) {
+  const serverReference = timer?.server_synced_at || timer?.updated_at || timer?.started_at || timer?.paused_at;
+  if (!serverReference) {
+    state.timerServerOffsetMs = 0;
+    return;
+  }
+  state.timerServerOffsetMs = new Date(serverReference).getTime() - Date.now();
+}
+
+function getSyncedNow() {
+  return Date.now() + Number(state.timerServerOffsetMs || 0);
 }
 
 function defaultTimer(duration = 60) {
