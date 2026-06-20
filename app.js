@@ -4,6 +4,34 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const SESSION_KEY = "gincana_session";
 const TIMER_ID = 1;
 const STORAGE_BUCKET = "photos";
+const EVALUATION_TYPE = "drop_evaluation_v1";
+const CRITERIA_POINTS = {
+  1: -5,
+  2: 0,
+  3: 5,
+  4: 10,
+};
+const EVALUATION_CRITERIA = [
+  { id: "criatividade", label: "Criatividade" },
+  { id: "uniao", label: "Uniao" },
+  { id: "respeito", label: "Respeito" },
+  { id: "qualidade_foto", label: "Qualidade da foto" },
+];
+const DIFFICULTY_POINTS = {
+  facil: 50,
+  medio: 100,
+  dificil: 150,
+};
+const DIFFICULTY_LABELS = {
+  facil: "Facil",
+  medio: "Medio",
+  dificil: "Dificil",
+};
+const DIFFICULTY_ORDER = {
+  facil: 1,
+  medio: 2,
+  dificil: 3,
+};
 
 const state = {
   client: null,
@@ -63,6 +91,7 @@ function bindEvents() {
   $("#teamLogout").addEventListener("click", logout);
   $("#adminLogout").addEventListener("click", logout);
   $("#adminOpenTv").addEventListener("click", openTv);
+  $("#adminSyncScreens").addEventListener("click", syncScreens);
   $("#openTvFromLogin").addEventListener("click", openTv);
   $("#refreshTeamData").addEventListener("click", loadData);
   $("#submissionFilter").addEventListener("change", renderAdmin);
@@ -76,11 +105,6 @@ function bindEvents() {
   $("#timerPause").addEventListener("click", pauseTimer);
   $("#timerResume").addEventListener("click", resumeTimer);
   $("#timerReset").addEventListener("click", () => resetTimer("#timerDuration"));
-
-  $("#tvTimerStart").addEventListener("click", () => startTimer("#tvTimerDuration"));
-  $("#tvTimerPause").addEventListener("click", pauseTimer);
-  $("#tvTimerResume").addEventListener("click", resumeTimer);
-  $("#tvTimerReset").addEventListener("click", () => resetTimer("#tvTimerDuration"));
 
   window.addEventListener("hashchange", () => {
     if (location.hash === "#tv") {
@@ -229,7 +253,7 @@ function renderTeam() {
 function renderCurrentMission() {
   const container = $("#missionsList");
   const template = $("#missionCardTemplate");
-  const missions = state.missions.filter((mission) => mission.active);
+  const missions = sortMissionsForTeams(state.missions.filter((mission) => mission.active));
   const progress = getTeamMissionProgress(state.session?.id, missions);
   container.innerHTML = "";
 
@@ -250,9 +274,9 @@ function renderCurrentMission() {
 
   $(".mission-title", card).textContent = mission.title;
   $(".mission-description", card).textContent = mission.description || "";
-  $(".mission-points", card).textContent = `${mission.points || 0} pts`;
-  $(".mission-category", card).textContent = mission.category || "Geral";
-  $(".mission-difficulty", card).textContent = mission.difficulty || "Livre";
+  $(".mission-points", card).textContent = `${getMissionPoints(mission)} pts`;
+  $(".mission-category", card).textContent = getDifficultyLabel(mission.difficulty);
+  $(".mission-difficulty", card).textContent = getDifficultyLabel(mission.difficulty);
   $(".mission-status", card).textContent = statusLabel(status);
   $(".mission-note", card).textContent = getTeamMissionNote(submission);
 
@@ -260,7 +284,7 @@ function renderCurrentMission() {
   const button = $("button", form);
   if (status === "pending") {
     form.classList.add("hidden");
-  } else if (status === "revision" || status === "rejected") {
+  } else if (status === "revision") {
     button.textContent = "Reenviar foto";
   }
 
@@ -272,17 +296,17 @@ function getTeamMissionProgress(teamId, missions) {
   const teamSubmissions = state.submissions.filter((item) => item.team_id === teamId);
   for (const mission of missions) {
     const submission = teamSubmissions.find((item) => item.mission_id === mission.id);
-    if (submission?.status === "approved") continue;
+    if (submission?.status === "approved" || submission?.status === "rejected") continue;
     return { currentMission: mission, currentSubmission: submission || null };
   }
   return { currentMission: null, currentSubmission: null };
 }
 
 function getTeamMissionNote(submission) {
-  if (!submission) return "Envie uma foto para esta missao. O admin vai revisar antes de liberar a proxima.";
-  if (submission.status === "pending") return "Foto enviada. Status: esperando revisao do admin.";
-  if (submission.status === "revision") return submission.note || "O admin pediu revisao. Envie outra foto para tentar novamente.";
-  if (submission.status === "rejected") return submission.note || "Envio contestado pelo admin. Envie outra foto para continuar.";
+  if (!submission) return "Envie uma foto para esta missao. O admin vai analisar antes de liberar a proxima.";
+  if (submission.status === "pending") return "Foto enviada. Status: em analise pelo admin.";
+  if (submission.status === "revision") return submission.note || "O admin pediu para rever esta missao. Envie outra foto para tentar de novo.";
+  if (submission.status === "rejected") return submission.note || "Esta missao falhou, mas a proxima foi liberada.";
   return submission.note || "";
 }
 
@@ -320,7 +344,7 @@ async function submitPhoto(event, mission, existingSubmission) {
       : await state.client.from("submissions").insert(payload);
 
     if (result.error) throw result.error;
-    message.textContent = "Foto enviada. Espere a revisao do admin.";
+    message.textContent = "Foto enviada. Espere a analise do admin.";
     input.value = "";
     await loadData();
   } catch (err) {
@@ -369,7 +393,7 @@ function renderSubmissions(selector, submissions, options) {
         <strong>${escapeHtml(team?.emoji || "")} ${escapeHtml(team?.name || "Time")}</strong>
       </div>
       ${submission.photo_url ? `<img class="submission-photo" src="${escapeAttr(submission.photo_url)}" alt="Foto enviada" />` : ""}
-      <p>${submission.note ? escapeHtml(submission.note) : "Sem observacao."}</p>
+      <p>${formatSubmissionNote(submission)}</p>
       <small>${formatDate(submission.created_at)}</small>
     `;
 
@@ -377,15 +401,31 @@ function renderSubmissions(selector, submissions, options) {
       const controls = document.createElement("div");
       controls.className = "note-row";
       controls.innerHTML = `
-        <textarea rows="2" placeholder="Observacao para o time">${escapeHtml(submission.note || "")}</textarea>
+        <textarea rows="2" placeholder="Observacao para o time">${escapeHtml(getEditableSubmissionNote(submission))}</textarea>
         <div class="button-row">
-          <button class="primary-btn" type="button" data-status="approved">Aprovar e liberar proxima</button>
-          <button class="secondary-btn" type="button" data-status="revision">Pedir revisao</button>
-          <button class="danger-btn" type="button" data-status="rejected">Contestar</button>
+          <button class="primary-btn" type="button" data-action="evaluate">Avaliar criterios</button>
+          <button class="secondary-btn" type="button" data-status="revision">Rever: time tenta de novo</button>
+          <button class="danger-btn" type="button" data-status="rejected">Falhou e liberar proxima</button>
+          ${submission.photo_url ? `<button class="secondary-btn" type="button" data-action="fullscreen">Ver foto tela cheia</button>` : ""}
+          <button class="danger-btn" type="button" data-action="delete">Apagar submissao</button>
         </div>
       `;
       $$("button", controls).forEach((button) => {
-        button.addEventListener("click", () => updateSubmissionStatus(submission, button.dataset.status, $("textarea", controls).value));
+        button.addEventListener("click", () => {
+          if (button.dataset.action === "fullscreen") {
+            openSubmissionImage(submission.photo_url);
+            return;
+          }
+          if (button.dataset.action === "delete") {
+            deleteSubmission(submission);
+            return;
+          }
+          if (button.dataset.action === "evaluate") {
+            openEvaluationModal(submission, $("textarea", controls).value);
+            return;
+          }
+          updateSubmissionStatus(submission, button.dataset.status, $("textarea", controls).value, { sync: true });
+        });
       });
       card.append(controls);
     }
@@ -394,21 +434,146 @@ function renderSubmissions(selector, submissions, options) {
   });
 }
 
-async function updateSubmissionStatus(submission, status, note) {
+async function updateSubmissionStatus(submission, status, note, options = {}) {
   const { error } = await state.client.from("submissions").update({ status, note: note || null }).eq("id", submission.id);
   if (error) {
     showToast(getErrorMessage(error));
-    return;
+    return false;
   }
 
   await recalculateTeamScore(submission.team_id);
+  if (options.sync) {
+    await requestScreenSync({ quiet: true });
+  }
   await loadData();
+  return true;
+}
+
+async function approveSubmissionWithEvaluation(submission, evaluationNote) {
+  const { error } = await state.client
+    .from("submissions")
+    .update({ status: "approved", note: JSON.stringify(evaluationNote) })
+    .eq("id", submission.id);
+
+  if (error) {
+    showToast(getErrorMessage(error));
+    return false;
+  }
+
+  await recalculateTeamScore(submission.team_id);
+  await requestScreenSync({ quiet: true });
+  await loadData();
+  return true;
+}
+
+function openEvaluationModal(submission, comment = "") {
+  const mission = findMission(submission.mission_id);
+  const missionPoints = getMissionPoints(mission);
+  const selected = {};
+  const overlay = document.createElement("div");
+  overlay.className = "evaluation-modal";
+  overlay.innerHTML = `
+    <section class="evaluation-dialog" role="dialog" aria-modal="true" aria-labelledby="evaluationTitle">
+      <div class="section-head">
+        <div>
+          <p class="eyebrow">Avaliacao DROP</p>
+          <h2 id="evaluationTitle">${escapeHtml(mission?.title || "Missao")}</h2>
+        </div>
+        <button class="secondary-btn" type="button" data-action="cancel">Cancelar</button>
+      </div>
+      <div class="evaluation-criteria">
+        ${EVALUATION_CRITERIA.map((criterion) => `
+          <div class="criterion-row" data-criterion="${criterion.id}">
+            <strong>${criterion.label}</strong>
+            <div class="star-options">
+              ${[1, 2, 3, 4].map((stars) => `
+                <button class="star-btn" type="button" data-stars="${stars}" title="${stars} estrela${stars > 1 ? "s" : ""}">
+                  ${"★".repeat(stars)} <span>${formatSigned(CRITERIA_POINTS[stars])}</span>
+                </button>
+              `).join("")}
+            </div>
+          </div>
+        `).join("")}
+      </div>
+      <label>
+        <span>Observacao opcional</span>
+        <textarea class="evaluation-comment" rows="3" placeholder="Comentario para historico do admin">${escapeHtml(comment || "")}</textarea>
+      </label>
+      <div class="evaluation-summary">
+        <span>Pontos da missao: <strong data-summary="mission">${missionPoints}</strong></span>
+        <span>Criterios: <strong data-summary="criteria">0</strong></span>
+        <span>Total desta submissao: <strong data-summary="total">${missionPoints}</strong></span>
+      </div>
+      <div class="button-row">
+        <button class="primary-btn" type="button" data-action="confirm" disabled>Confirmar aprovacao</button>
+      </div>
+    </section>
+  `;
+
+  const updateSummary = () => {
+    const criteriaTotal = Object.values(selected).reduce((sum, value) => sum + value.points, 0);
+    const complete = EVALUATION_CRITERIA.every((criterion) => selected[criterion.id]);
+    $('[data-summary="criteria"]', overlay).textContent = formatSigned(criteriaTotal);
+    $('[data-summary="total"]', overlay).textContent = missionPoints + criteriaTotal;
+    $('[data-action="confirm"]', overlay).disabled = !complete;
+  };
+
+  $$(".star-btn", overlay).forEach((button) => {
+    button.addEventListener("click", () => {
+      const row = button.closest(".criterion-row");
+      const criterionId = row.dataset.criterion;
+      const stars = Number(button.dataset.stars);
+      selected[criterionId] = { stars, points: CRITERIA_POINTS[stars] };
+      $$(".star-btn", row).forEach((item) => item.classList.toggle("selected", item === button));
+      updateSummary();
+    });
+  });
+
+  $('[data-action="cancel"]', overlay).addEventListener("click", () => overlay.remove());
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay) overlay.remove();
+  });
+  $('[data-action="confirm"]', overlay).addEventListener("click", async () => {
+    const confirmButton = $('[data-action="confirm"]', overlay);
+    confirmButton.disabled = true;
+    confirmButton.textContent = "Salvando...";
+    const note = buildEvaluationNote(selected, missionPoints, $(".evaluation-comment", overlay).value);
+    const saved = await approveSubmissionWithEvaluation(submission, note);
+    if (saved) {
+      overlay.remove();
+      return;
+    }
+    confirmButton.textContent = "Confirmar aprovacao";
+    confirmButton.disabled = false;
+  });
+
+  document.body.append(overlay);
+}
+
+function buildEvaluationNote(selected, missionPoints, comment) {
+  const criteria = {};
+  EVALUATION_CRITERIA.forEach((criterion) => {
+    criteria[criterion.id] = {
+      label: criterion.label,
+      stars: selected[criterion.id].stars,
+      points: selected[criterion.id].points,
+    };
+  });
+  const criteriaTotal = Object.values(criteria).reduce((sum, value) => sum + value.points, 0);
+  return {
+    type: EVALUATION_TYPE,
+    criteria,
+    criteria_total: criteriaTotal,
+    mission_points: missionPoints,
+    total_points: missionPoints + criteriaTotal,
+    comment: comment || "",
+  };
 }
 
 async function recalculateTeamScore(teamId) {
   const { data, error } = await state.client
     .from("submissions")
-    .select("mission_id")
+    .select("mission_id,note")
     .eq("team_id", teamId)
     .eq("status", "approved");
 
@@ -418,9 +583,13 @@ async function recalculateTeamScore(teamId) {
   }
 
   const approved = data || [];
-  const total = approved.reduce((sum, item) => sum + Number(findMission(item.mission_id)?.points || 0), 0);
+  const total = approved.reduce((sum, item) => sum + getSubmissionScore(item), 0);
   const result = await state.client.from("teams").update({ score: total }).eq("id", teamId);
   if (result.error) showToast(getErrorMessage(result.error));
+}
+
+async function recalculateAllTeamScores() {
+  await Promise.all(state.teams.map((team) => recalculateTeamScore(team.id)));
 }
 
 async function saveMission(event) {
@@ -429,9 +598,9 @@ async function saveMission(event) {
   const payload = {
     title: $("#missionTitle").value.trim(),
     description: $("#missionDescription").value.trim(),
-    points: Number($("#missionPoints").value || 0),
-    category: $("#missionCategory").value.trim() || "Geral",
-    difficulty: $("#missionDifficulty").value.trim() || "Livre",
+    difficulty: normalizeDifficulty($("#missionDifficulty").value),
+    points: getDifficultyPoints($("#missionDifficulty").value),
+    category: "Geral",
     active: $("#missionActive").checked,
   };
 
@@ -445,6 +614,9 @@ async function saveMission(event) {
   }
   clearMissionForm();
   await loadData();
+  await recalculateAllTeamScores();
+  await requestScreenSync({ quiet: true });
+  await loadData();
 }
 
 function renderAdminMissions() {
@@ -455,23 +627,25 @@ function renderAdminMissions() {
     return;
   }
 
-  state.missions.forEach((mission, index) => {
+  sortMissionsForTeams(state.missions).forEach((mission, index) => {
     const card = document.createElement("article");
     card.className = "entity-card";
     card.innerHTML = `
       <div class="entity-head">
         <div>
-          <span class="tag">${mission.active ? `Missao ${index + 1}` : "Inativa"}</span>
+          <span class="tag">${mission.active ? `${getDifficultyLabel(mission.difficulty)} #${index + 1}` : "Inativa"}</span>
           <h3>${escapeHtml(mission.title)}</h3>
         </div>
-        <strong>${Number(mission.points || 0)} pts</strong>
+        <strong>${getMissionPoints(mission)} pts</strong>
       </div>
       <p>${escapeHtml(mission.description || "")}</p>
       <div class="button-row">
         <button class="secondary-btn" type="button">Editar</button>
+        <button class="danger-btn" type="button" data-action="delete">Apagar missao</button>
       </div>
     `;
-    $("button", card).addEventListener("click", () => fillMissionForm(mission));
+    $(".secondary-btn", card).addEventListener("click", () => fillMissionForm(mission));
+    $('[data-action="delete"]', card).addEventListener("click", () => deleteMission(mission));
     container.append(card);
   });
 }
@@ -480,9 +654,7 @@ function fillMissionForm(mission) {
   $("#missionId").value = mission.id;
   $("#missionTitle").value = mission.title || "";
   $("#missionDescription").value = mission.description || "";
-  $("#missionPoints").value = mission.points || 0;
-  $("#missionCategory").value = mission.category || "";
-  $("#missionDifficulty").value = mission.difficulty || "";
+  $("#missionDifficulty").value = normalizeDifficulty(mission.difficulty);
   $("#missionActive").checked = Boolean(mission.active);
 }
 
@@ -490,6 +662,30 @@ function clearMissionForm() {
   $("#missionForm").reset();
   $("#missionId").value = "";
   $("#missionActive").checked = true;
+  $("#missionDifficulty").value = "facil";
+}
+
+async function deleteMission(mission) {
+  const confirmed = confirm(`Apagar a missao "${mission.title}" e todos os envios dela?`);
+  if (!confirmed) return;
+
+  const affectedTeamIds = [...new Set(state.submissions.filter((submission) => submission.mission_id === mission.id).map((submission) => submission.team_id))];
+  const submissionsResult = await state.client.from("submissions").delete().eq("mission_id", mission.id);
+  if (submissionsResult.error) {
+    showToast(getErrorMessage(submissionsResult.error));
+    return;
+  }
+
+  const { error } = await state.client.from("missions").delete().eq("id", mission.id);
+  if (error) {
+    showToast(getErrorMessage(error));
+    return;
+  }
+
+  await loadData();
+  await Promise.all(affectedTeamIds.map((teamId) => recalculateTeamScore(teamId)));
+  await requestScreenSync({ quiet: true });
+  await loadData();
 }
 
 async function saveTeam(event) {
@@ -543,9 +739,11 @@ function renderAdminTeams() {
       </div>
       <div class="button-row">
         <button class="secondary-btn" type="button">Editar</button>
+        <button class="danger-btn" type="button" data-action="delete">Apagar time</button>
       </div>
     `;
-    $("button", card).addEventListener("click", () => fillTeamForm(team));
+    $(".secondary-btn", card).addEventListener("click", () => fillTeamForm(team));
+    $('[data-action="delete"]', card).addEventListener("click", () => deleteTeam(team));
     container.append(card);
   });
 }
@@ -564,6 +762,26 @@ function clearTeamForm() {
   $("#editTeamId").value = "";
   $("#teamColor").value = "#6c63ff";
   $("#teamScore").value = 0;
+}
+
+async function deleteTeam(team) {
+  const confirmed = confirm(`Apagar o time "${team.name}" e todos os envios dele?`);
+  if (!confirmed) return;
+
+  const submissionsResult = await state.client.from("submissions").delete().eq("team_id", team.id);
+  if (submissionsResult.error) {
+    showToast(getErrorMessage(submissionsResult.error));
+    return;
+  }
+
+  const { error } = await state.client.from("teams").delete().eq("id", team.id);
+  if (error) {
+    showToast(getErrorMessage(error));
+    return;
+  }
+
+  await requestScreenSync({ quiet: true });
+  await loadData();
 }
 
 function renderRanking(selector) {
@@ -598,24 +816,37 @@ function renderRanking(selector) {
 
 function renderTv() {
   renderRanking("#tvRanking");
-  const podium = $("#tvPodium");
-  podium.innerHTML = "";
-  const topThree = [...state.teams].sort((a, b) => Number(b.score || 0) - Number(a.score || 0)).slice(0, 3);
-  if (!topThree.length) {
-    podium.append(emptyState("Aguardando pontuacao."));
+}
+
+function openSubmissionImage(photoUrl) {
+  if (!photoUrl) return;
+  const overlay = document.createElement("div");
+  overlay.className = "image-lightbox";
+  overlay.innerHTML = `
+    <button class="lightbox-close" type="button" aria-label="Fechar">Fechar</button>
+    <img src="${escapeAttr(photoUrl)}" alt="Foto enviada em tela cheia" />
+  `;
+  overlay.addEventListener("click", (event) => {
+    if (event.target === overlay || event.target.classList.contains("lightbox-close")) {
+      overlay.remove();
+    }
+  });
+  document.body.append(overlay);
+  overlay.requestFullscreen?.().catch(() => {});
+}
+
+async function deleteSubmission(submission) {
+  const confirmed = confirm("Apagar esta submissao? Essa acao remove o envio do time.");
+  if (!confirmed) return;
+
+  const { error } = await state.client.from("submissions").delete().eq("id", submission.id);
+  if (error) {
+    showToast(getErrorMessage(error));
     return;
   }
 
-  topThree.forEach((team, index) => {
-    const place = document.createElement("article");
-    place.className = "podium-place";
-    place.innerHTML = `
-      <span class="tag">#${index + 1}</span>
-      <strong>${escapeHtml(team.emoji || "")} ${escapeHtml(team.name)}</strong>
-      <span class="score">${Number(team.score || 0)} pts</span>
-    `;
-    podium.append(place);
-  });
+  await recalculateTeamScore(submission.team_id);
+  await loadData();
 }
 
 async function startTimer(inputSelector) {
@@ -660,6 +891,45 @@ async function upsertTimer(payload) {
   await loadData();
 }
 
+async function syncScreens(event) {
+  const button = event?.currentTarget;
+  if (button) button.disabled = true;
+
+  const synced = await requestScreenSync({ quiet: false });
+  if (!synced) {
+    if (button) button.disabled = false;
+    return;
+  }
+
+  await loadData();
+  if (button) {
+    button.textContent = "Sincronizado";
+    setTimeout(() => {
+      button.textContent = "Sincronizar telas";
+      button.disabled = false;
+    }, 1400);
+  }
+}
+
+async function requestScreenSync(options = {}) {
+  const { error } = await state.client
+    .from("event_timer")
+    .update({ refresh_requested_at: new Date().toISOString() })
+    .eq("id", TIMER_ID);
+
+  if (error) {
+    const message = `${getErrorMessage(error)}\n\nSe a coluna ainda nao existir, rode no Supabase SQL Editor:\nalter table event_timer add column if not exists refresh_requested_at timestamptz;`;
+    if (options.quiet) {
+      console.warn(message);
+    } else {
+      showToast(message);
+    }
+    return false;
+  }
+
+  return true;
+}
+
 function renderTimer() {
   const timer = state.timer || defaultTimer();
   const elapsed = getElapsedSeconds(timer);
@@ -680,7 +950,6 @@ function renderTimer() {
   setProgress("#teamTimerProgress", percent);
   setProgress("#tvTimerProgress", percent);
   syncDurationInput("#timerDuration", timer.duration_minutes || 60);
-  syncDurationInput("#tvTimerDuration", timer.duration_minutes || 60);
 }
 
 function syncDurationInput(selector, value) {
@@ -741,17 +1010,79 @@ function findMission(id) {
   return state.missions.find((mission) => mission.id === id);
 }
 
+function getSubmissionScore(submission) {
+  const missionPoints = getMissionPoints(findMission(submission.mission_id));
+  const evaluation = parseEvaluationNote(submission.note);
+  if (!evaluation) return missionPoints;
+  return missionPoints + Number(evaluation.criteria_total || 0);
+}
+
+function sortMissionsForTeams(missions) {
+  return [...missions].sort((a, b) => {
+    const difficultyDiff = DIFFICULTY_ORDER[normalizeDifficulty(a.difficulty)] - DIFFICULTY_ORDER[normalizeDifficulty(b.difficulty)];
+    if (difficultyDiff !== 0) return difficultyDiff;
+    return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+  });
+}
+
+function normalizeDifficulty(value) {
+  const text = String(value || "").trim().toLowerCase();
+  if (["facil", "fácil", "easy"].includes(text)) return "facil";
+  if (["medio", "médio", "media", "média", "medium"].includes(text)) return "medio";
+  if (["dificil", "difícil", "hard"].includes(text)) return "dificil";
+  return "facil";
+}
+
+function getDifficultyPoints(value) {
+  return DIFFICULTY_POINTS[normalizeDifficulty(value)];
+}
+
+function getMissionPoints(mission) {
+  if (!mission) return 0;
+  return getDifficultyPoints(mission.difficulty);
+}
+
+function getDifficultyLabel(value) {
+  return DIFFICULTY_LABELS[normalizeDifficulty(value)];
+}
+
+function parseEvaluationNote(note) {
+  if (!note) return null;
+  try {
+    const parsed = JSON.parse(note);
+    return parsed?.type === EVALUATION_TYPE ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function formatSubmissionNote(submission) {
+  const evaluation = parseEvaluationNote(submission.note);
+  if (!evaluation) return escapeHtml(submission.note || "Sem observacao.");
+  const criteriaTotal = Number(evaluation.criteria_total || 0);
+  const missionPoints = getMissionPoints(findMission(submission.mission_id));
+  const total = missionPoints + criteriaTotal;
+  const comment = evaluation.comment ? ` • ${escapeHtml(evaluation.comment)}` : "";
+  return `Avaliacao: ${formatSigned(criteriaTotal)} criterios, ${missionPoints} pts missao, total ${total} pts${comment}`;
+}
+
+function getEditableSubmissionNote(submission) {
+  const evaluation = parseEvaluationNote(submission.note);
+  if (evaluation) return evaluation.comment || "";
+  return submission.note || "";
+}
+
 function statusWeight(status) {
-  return { pending: 0, revision: 1, rejected: 2, approved: 3 }[status] ?? 9;
+  return { pending: 0, revision: 1, approved: 2, rejected: 3 }[status] ?? 9;
 }
 
 function statusLabel(status) {
   const labels = {
     not_sent: "Nao enviada",
-    pending: "Esperando revisao",
+    pending: "Em analise",
     approved: "Aprovada",
-    rejected: "Contestada",
-    revision: "Revisao solicitada",
+    rejected: "Falhou",
+    revision: "Rever: tentar de novo",
     running: "Rodando",
     paused: "Pausado",
     stopped: "Parado",
@@ -765,6 +1096,11 @@ function formatDuration(totalSeconds) {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, "0")).join(":");
+}
+
+function formatSigned(value) {
+  const number = Number(value || 0);
+  return number > 0 ? `+${number}` : String(number);
 }
 
 function formatDate(value) {

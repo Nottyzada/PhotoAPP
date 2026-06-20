@@ -337,7 +337,6 @@ textarea {
 .panel,
 .timer-band,
 .tv-clock,
-.tv-podium,
 .tv-ranking {
   position: relative;
   overflow: hidden;
@@ -350,7 +349,6 @@ textarea {
 
 .panel .ghost-btn,
 .panel .secondary-btn,
-.tv-podium .secondary-btn,
 .tv-ranking .secondary-btn {
   color: var(--text-on-dark);
 }
@@ -597,8 +595,12 @@ progress::-moz-progress-bar {
 }
 
 .tv-view {
+  display: flex;
+  flex-direction: column;
   width: min(100%, 1500px);
-  padding: 18px 0;
+  height: calc(100vh - 32px);
+  overflow: hidden;
+  padding: 12px 0;
 }
 
 .tv-header {
@@ -606,15 +608,15 @@ progress::-moz-progress-bar {
   align-items: end;
   justify-content: space-between;
   gap: 18px;
-  margin-bottom: 16px;
+  flex: 0 0 auto;
+  margin-bottom: 12px;
 }
 
 .tv-header h1 {
-  font-size: clamp(2.2rem, 6vw, 5.4rem);
+  font-size: clamp(2rem, 5.2vw, 4.8rem);
 }
 
 .tv-clock,
-.tv-podium,
 .tv-ranking {
   padding: 18px;
 }
@@ -625,70 +627,162 @@ progress::-moz-progress-bar {
   display: grid;
   align-content: center;
   gap: 18px;
-  min-height: 320px;
+  min-height: 0;
   background:
     linear-gradient(135deg, rgba(60, 49, 147, 0.96), rgba(54, 97, 190, 0.92) 52%, rgba(74, 138, 231, 0.86));
   color: var(--text-on-dark);
 }
 
-.tv-clock label {
-  color: var(--muted-on-dark);
-}
-
-.tv-clock input {
-  background: rgba(8, 12, 48, 0.74);
-}
-
 #tvTimerDisplay {
   font-family: Syne, Inter, sans-serif;
-  font-size: clamp(4rem, 19vw, 12rem);
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: clamp(3.25rem, 15vw, 10rem);
   font-weight: 800;
-  line-height: 0.9;
+  line-height: 0.86;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  white-space: nowrap;
 }
 
-.tv-timer-controls {
-  display: grid;
-  gap: 10px;
-  max-width: 560px;
+.tv-clock progress {
+  align-self: end;
 }
 
-.podium {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: end;
-  gap: 10px;
-  min-height: 230px;
-  margin-top: 16px;
+.tv-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-rows: minmax(220px, 42vh) minmax(0, 1fr);
+  overflow: hidden;
 }
 
-.podium-place {
+.tv-ranking {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tv-list {
+  max-height: calc(100% - 42px);
+  overflow: hidden;
+  gap: 8px;
+}
+
+.tv-list .ranking-row {
+  padding: 10px 12px;
+}
+
+.tv-list .rank-progress {
+  height: 7px;
+}
+
+.image-lightbox {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
   display: grid;
-  align-content: end;
-  min-height: 140px;
+  place-items: center;
+  padding: 18px;
+  background: rgba(5, 8, 32, 0.94);
+}
+
+.image-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
   border-radius: var(--radius);
-  background: linear-gradient(180deg, var(--surface-2), rgba(17, 22, 71, 0.78));
+  object-fit: contain;
+  box-shadow: var(--shadow);
+}
+
+.lightbox-close {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 1;
+  border: 1px solid rgba(232, 238, 252, 0.34);
+  border-radius: var(--radius);
+  background: rgba(20, 25, 78, 0.86);
+  color: var(--text-on-dark);
+  padding: 10px 14px;
+  font-weight: 900;
+}
+
+.evaluation-modal {
+  position: fixed;
+  z-index: 1001;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  overflow: auto;
+  padding: 18px;
+  background: rgba(5, 8, 32, 0.9);
+}
+
+.evaluation-dialog {
+  width: min(100%, 720px);
+  border: 1px solid rgba(232, 238, 252, 0.2);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(145deg, rgba(74, 138, 231, 0.16), transparent 44%),
+    rgba(15, 18, 54, 0.98);
+  color: var(--text-on-dark);
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+.evaluation-criteria {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.criterion-row {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(232, 238, 252, 0.12);
+  border-radius: var(--radius);
+  background: rgba(17, 22, 71, 0.78);
   padding: 12px;
-  text-align: center;
 }
 
-.podium-place:nth-child(1) {
-  min-height: 230px;
-  background: linear-gradient(180deg, rgba(143, 158, 213, 0.72), rgba(74, 138, 231, 0.34));
+.star-options {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.podium-place:nth-child(2) {
-  min-height: 185px;
+.star-btn {
+  border: 1px solid rgba(74, 138, 231, 0.22);
+  border-radius: var(--radius);
+  background: rgba(232, 238, 252, 0.08);
+  color: var(--drop-ice);
+  padding: 10px;
+  font-weight: 900;
 }
 
-.podium-place:nth-child(3) {
-  min-height: 160px;
+.star-btn span {
+  color: var(--muted);
 }
 
-.podium-place strong {
-  display: block;
-  overflow-wrap: anywhere;
-  font-size: 1rem;
+.star-btn.selected {
+  border-color: var(--drop-bright);
+  background: linear-gradient(135deg, rgba(74, 138, 231, 0.5), rgba(86, 71, 173, 0.5));
+  box-shadow: 0 0 0 3px rgba(74, 138, 231, 0.18);
+}
+
+.evaluation-summary {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  border-radius: var(--radius);
+  background: rgba(74, 138, 231, 0.12);
+  padding: 12px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.evaluation-summary strong {
+  color: var(--drop-ice);
 }
 
 .empty-state {
@@ -730,6 +824,10 @@ progress::-moz-progress-bar {
   .form-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+
+  .star-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (min-width: 1040px) {
@@ -738,7 +836,7 @@ progress::-moz-progress-bar {
   }
 
   .tv-grid {
-    grid-template-columns: minmax(0, 1.2fr) minmax(360px, 0.8fr);
+    grid-template-columns: 1fr;
   }
 
   .tv-clock,
